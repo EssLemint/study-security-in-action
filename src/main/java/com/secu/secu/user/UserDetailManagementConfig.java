@@ -1,4 +1,4 @@
-package com.secu.secu.config;
+package com.secu.secu.user;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
