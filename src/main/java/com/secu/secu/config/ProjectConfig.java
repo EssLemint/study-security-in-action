@@ -1,49 +1,76 @@
 package com.secu.secu.config;
 
+import com.secu.secu.auth.AuthenticationProviderService;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.crypto.scrypt.SCryptPasswordEncoder;
-import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.provisioning.JdbcUserDetailsManager;
 
-import java.util.HashMap;
-import java.util.Map;
+import javax.sql.DataSource;
 
 @Configuration
-public class ProjectConfig {
+@EnableAsync
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
 
   @Autowired
-  CustomAuthenticationProvider authentionProvicer;
+  private AuthenticationProviderService authenticationProviderService;
 
   @Bean
-  public AuthenticationManager configure(HttpSecurity httpSecurity) throws Exception {
-    AuthenticationManagerBuilder authenticationManagerBuilder =
-        httpSecurity.getSharedObject(AuthenticationManagerBuilder.class);
-    authenticationManagerBuilder.authenticationProvider(authentionProvicer);
-    return authenticationManagerBuilder.build();
-  }
-
-  @Bean
-  public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
-    return httpSecurity.authorizeHttpRequests().anyRequest().permitAll().and().httpBasic().and().build();
+  public UserDetailsService userDetailsService(DataSource dataSource) {
+    return new JdbcUserDetailsManager(dataSource);
   }
 
   @Bean
   public PasswordEncoder passwordEncoder() {
-    Map<String, PasswordEncoder> encoders = new HashMap<>();
+    return NoOpPasswordEncoder.getInstance();
+  }
 
-    encoders.put("noop", NoOpPasswordEncoder.getInstance());
-    encoders.put("bcrypt", new BCryptPasswordEncoder());
-    encoders.put("scrypt", new SCryptPasswordEncoder(16384, 8, 1, 32, 64));
+  @Override
+  protected void configure(AuthenticationManagerBuilder auth) {
+    auth.authenticationProvider(authenticationProviderService);
+  }
 
-    return new DelegatingPasswordEncoder("bcrypt", encoders);
+  @Override
+  protected void configure(HttpSecurity http) throws Exception {
+    http.formLogin().defaultSuccessUrl("/hello", true);
+
+    http.antMatcher("/**")
+        .authorizeRequests()
+        .antMatchers("/h2-console/*", "favicon.ico")
+        .permitAll()
+        .and().headers().frameOptions().sameOrigin()
+        .and().csrf().disable();
+
+    http.authorizeRequests().anyRequest().authenticated();
+  }
+
+  @Bean
+  public InitializingBean initializingBean() {
+    return () -> SecurityContextHolder.setStrategyName(
+        SecurityContextHolder.MODE_INHERITABLETHREADLOCAL
+    );
+  }
+
+  @Bean
+  public BCryptPasswordEncoder bCryptPasswordEncoder() {
+    return new BCryptPasswordEncoder();
+  }
+
+  @Bean
+  public SCryptPasswordEncoder sCryptPasswordEncoder() {
+    return new SCryptPasswordEncoder();
   }
 
 }
