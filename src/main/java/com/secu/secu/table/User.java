@@ -36,4 +36,7 @@ public class User {
   @OneToMany(mappedBy = "user", fetch = FetchType.EAGER)
   private List<Authority> authorities;
 
+  @Enumerated(EnumType.STRING)
+  private Role role;
+
 }
